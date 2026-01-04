@@ -1,0 +1,17 @@
+services:
+  bitwarden:
+    image: bitwarden/self-host:beta
+    container_name: bitwarden-lite
+    restart: unless-stopped
+    networks: [homelab]
+    ports:
+      # Prefer putting a reverse proxy in front later; for now keep it LAN-only if possible.
+      - "0.0.0.0:8088:8080"
+    env_file:
+      - .env
+    volumes:
+      - /mnt/d/bitwarden-lite/data:/etc/bitwarden
+
+networks:
+  homelab:
+    external: true
