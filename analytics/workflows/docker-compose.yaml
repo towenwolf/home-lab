@@ -3,9 +3,9 @@ networks:
     external: true
 
 services:
-  extractor:
+  workflows:
     image: python:3.12-slim
-    container_name: dw-extractor
+    container_name: dw-workflows
     restart: unless-stopped
     working_dir: /app
     volumes:

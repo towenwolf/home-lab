@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Data Warehouse Extractor Scheduler
+Data Warehouse Workflow Scheduler
 
-Runs all extraction jobs on their configured schedules.
+Runs all workflow jobs on their configured schedules.
 """
 
 import argparse
@@ -13,7 +13,7 @@ import sys
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from jobs import state_spending
+from jobs import state_spending, state_spending_sankey
 
 # Logging setup
 logging.basicConfig(
@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Registry of all extraction jobs
+# Registry of all workflow jobs
 JOBS = [
     {
         'id': 'state_spending',
@@ -30,19 +30,18 @@ JOBS = [
         'func': state_spending.run,
         'schedule': state_spending.SCHEDULE,
     },
-    # Add more jobs here as needed:
-    # {
-    #     'id': 'another_job',
-    #     'name': 'Another Data Source',
-    #     'func': another_job.run,
-    #     'schedule': another_job.SCHEDULE,
-    # },
+    {
+        'id': 'state_spending_sankey',
+        'name': 'State Spending Sankey Transform',
+        'func': state_spending_sankey.run,
+        'schedule': state_spending_sankey.SCHEDULE,
+    },
 ]
 
 
 def run_all_jobs():
-    """Run all extraction jobs immediately."""
-    logger.info("Running all extraction jobs...")
+    """Run all workflow jobs immediately."""
+    logger.info("Running all workflow jobs...")
     for job in JOBS:
         logger.info(f"Running job: {job['name']}")
         try:
@@ -97,7 +96,7 @@ def start_scheduler(run_on_startup: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Data Warehouse Extractor Scheduler'
+        description='Data Warehouse Workflow Scheduler'
     )
     parser.add_argument(
         '--run-now',
