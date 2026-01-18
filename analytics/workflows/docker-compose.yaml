@@ -1,0 +1,31 @@
+networks:
+  homelab-shared:
+    external: true
+
+services:
+  workflows:
+    image: python:3.12-slim
+    container_name: dw-workflows
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./scheduler.py:/app/scheduler.py:ro
+      - ./jobs:/app/jobs:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+    environment:
+      # Database connection
+      - DB_HOST=${DB_HOST:-dw-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-dw}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # API tokens
+      - SODA_APP_TOKEN=${SODA_APP_TOKEN}
+      # Schedule overrides (optional)
+      - STATE_SPENDING_SCHEDULE_DAY=${STATE_SPENDING_SCHEDULE_DAY:-sun}
+      - STATE_SPENDING_SCHEDULE_HOUR=${STATE_SPENDING_SCHEDULE_HOUR:-2}
+      - STATE_SPENDING_SCHEDULE_MINUTE=${STATE_SPENDING_SCHEDULE_MINUTE:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["pip install --quiet -r requirements.txt && python scheduler.py --run-on-startup"]
+    networks:
+      - homelab-shared

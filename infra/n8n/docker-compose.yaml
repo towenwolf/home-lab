@@ -1,3 +1,7 @@
+networks:
+  homelab-shared:
+    external: true
+
 services:
   postgres:
     image: postgres:16
@@ -11,9 +15,11 @@ services:
       - /mnt/d/n8n/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval:  10s
+      interval: 10s
       timeout: 5s
-      retries:  5
+      retries: 5
+    networks:
+      - homelab-shared
 
   n8n:
     image: n8nio/n8n:latest
@@ -23,7 +29,7 @@ services:
       - "0.0.0.0:5678:5678"
     environment:
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_HOST: n8n-postgres
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
       DB_POSTGRESDB_USER: ${POSTGRES_USER}
@@ -31,30 +37,17 @@ services:
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
       N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
-      N8N_HOST: ${N8N_HOST} 
+      N8N_HOST: ${N8N_HOST}
       N8N_PORT: 5678
       N8N_PROTOCOL: http
       N8N_SECURE_COOKIE: "false"
       WEBHOOK_URL: ${WEBHOOK_URL}
-      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}  
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
       TZ: America/Los_Angeles
     volumes:
       - /mnt/d/n8n/data:/home/node/.n8n
     depends_on:
       postgres:
         condition: service_healthy
-
-  pgadmin: 
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin
-    restart:  unless-stopped
-    ports:
-      - "0.0.0.0:5050:80"
-    environment: 
-      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER}@local.dev
-      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - /mnt/d/n8n/pgadmin:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition:  service_healthy
+    networks:
+      - homelab-shared
