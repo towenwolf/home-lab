@@ -13,7 +13,7 @@ import sys
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from jobs import state_spending, state_spending_sankey
+from jobs import stg_state_spending, load_state_spending
 
 # Logging setup
 logging.basicConfig(
@@ -25,16 +25,16 @@ logger = logging.getLogger(__name__)
 # Registry of all workflow jobs
 JOBS = [
     {
-        'id': 'state_spending',
-        'name': 'Oregon State Spending',
-        'func': state_spending.run,
-        'schedule': state_spending.SCHEDULE,
+        'id': 'stg_state_spending',
+        'name': 'Oregon State Spending (Staging)',
+        'func': stg_state_spending.run,
+        'schedule': stg_state_spending.SCHEDULE,
     },
     {
-        'id': 'state_spending_sankey',
-        'name': 'State Spending Sankey Transform',
-        'func': state_spending_sankey.run,
-        'schedule': state_spending_sankey.SCHEDULE,
+        'id': 'load_state_spending',
+        'name': 'State Spending (Load)',
+        'func': load_state_spending.run,
+        'schedule': load_state_spending.SCHEDULE,
     },
 ]
 
