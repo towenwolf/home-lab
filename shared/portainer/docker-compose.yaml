@@ -1,5 +1,5 @@
 networks:
-  homelab-shared:
+  homelab:
     external: true
 
 services:
@@ -13,4 +13,4 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:rw
       - /mnt/d/portainer/data:/data
     networks:
-      - homelab-shared
+      - homelab
