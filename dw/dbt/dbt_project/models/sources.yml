@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: "Raw data ingested from external sources"
+    tables:
+      - name: state_spending
+        description: "Oregon state spending data from SODA API"

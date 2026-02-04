@@ -1,0 +1,21 @@
+dw:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: dw-postgres
+      port: 5432
+      user: "{{ env_var('POSTGRES_USER', 'analytics') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'dw') }}"
+      schema: clean
+      threads: 4
+    prod:
+      type: postgres
+      host: dw-postgres
+      port: 5432
+      user: "{{ env_var('POSTGRES_USER', 'analytics') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'dw') }}"
+      schema: clean
+      threads: 4

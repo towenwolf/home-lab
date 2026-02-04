@@ -1,0 +1,10 @@
+name: 'dw'
+version: '1.0.0'
+
+profile: 'dw'
+
+model-paths: ["models"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
