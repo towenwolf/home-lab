@@ -7,6 +7,10 @@ services:
     image: ghcr.io/dbt-labs/dbt-postgres:1.9.0
     container_name: dbt
     working_dir: /usr/app/dbt
+    env_file:
+      - ../../.env
+    ports:
+      - "0.0.0.0:8081:8080"
     volumes:
       - ./dbt_project:/usr/app/dbt
       - ./profiles.yml:/root/.dbt/profiles.yml:ro

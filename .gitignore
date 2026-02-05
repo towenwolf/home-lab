@@ -1,2 +1,7 @@
 .env
 .venv/
+
+# dbt artifacts (auto-generated)
+**/target/
+**/logs/
+**/dbt_packages/
