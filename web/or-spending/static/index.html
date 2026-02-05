@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where Does Your Oregon Tax Dollar Go?</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0e17;
+    --bg-card: #111827;
+    --bg-surface: #1a2235;
+    --border: #2a3654;
+    --text-primary: #e8ecf4;
+    --text-secondary: #8899b8;
+    --text-muted: #576888;
+    --accent-gold: #d4a54a;
+    --accent-gold-dim: #a37e2e;
+    --accent-blue: #4a90d9;
+    --accent-teal: #38b2ac;
+    --accent-coral: #e07a5f;
+    --accent-purple: #9b7fd4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Source Sans 3', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .header {
+    text-align: center;
+    padding: 48px 24px 12px;
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+    margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.2s;
+  }
+
+  .title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(28px, 5vw, 52px);
+    line-height: 1.1;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.4s;
+  }
+
+  .title em {
+    color: var(--accent-gold);
+    font-style: normal;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.6;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.6s;
+  }
+
+  /* Loading state */
+  .loading {
+    text-align: center;
+    padding: 60px;
+    color: var(--text-muted);
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .error {
+    text-align: center;
+    padding: 60px;
+    color: var(--accent-coral);
+  }
+
+  /* Sankey container */
+  .sankey-wrapper {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.8s;
+  }
+
+  .sankey-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sankey-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-gold), var(--accent-teal), var(--accent-blue), var(--accent-purple), var(--accent-coral));
+  }
+
+  .column-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  #sankey-chart { width: 100%; }
+
+  .sankey-card .link {
+    fill: none;
+    stroke-opacity: 0.18;
+    transition: stroke-opacity 0.3s ease;
+  }
+  .sankey-card .link:hover { stroke-opacity: 0.55; }
+
+  .node rect {
+    rx: 3;
+    ry: 3;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 0.5;
+    cursor: pointer;
+    transition: filter 0.3s ease;
+  }
+  .node rect:hover { filter: brightness(1.25); }
+
+  .node-label {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 10px;
+    fill: var(--text-secondary);
+    pointer-events: none;
+  }
+
+  .node-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    fill: var(--text-muted);
+    pointer-events: none;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 999;
+    max-width: 320px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .tt-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .tooltip .tt-value {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-gold);
+    font-size: 14px;
+  }
+  .tooltip .tt-detail {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  /* Summary row */
+  .summary-row {
+    display: flex;
+    gap: 16px;
+    max-width: 1200px;
+    margin: 24px auto 0;
+    padding: 0 24px;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1.0s;
+  }
+
+  .stat-card {
+    flex: 1;
+    min-width: 180px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    text-align: center;
+  }
+
+  .stat-card .stat-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--accent-gold);
+  }
+
+  .stat-card .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Agency table */
+  .table-section {
+    max-width: 1200px;
+    margin: 32px auto 48px;
+    padding: 0 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1.2s;
+  }
+
+  .table-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .result-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .result-table th {
+    background: var(--bg-surface);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(42,54,84,0.4);
+  }
+
+  .result-table tr:last-child td { border-bottom: none; }
+  .result-table tr:hover td { background: rgba(212,165,74,0.03); }
+
+  .result-table .money {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-gold);
+    text-align: right;
+  }
+
+  .bar-cell {
+    position: relative;
+    padding-right: 80px !important;
+  }
+  .bar-cell .bar-bg {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 6px;
+    background: linear-gradient(90deg, var(--accent-gold-dim), var(--accent-gold));
+    border-radius: 3px;
+    opacity: 0.35;
+  }
+
+  .footer-note {
+    text-align: center;
+    padding: 0 24px 48px;
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">State of Oregon · Fiscal Year <span id="fiscal-year">2025</span></div>
+  <h1 class="title">Where Does Your <em>$1</em> Go?</h1>
+  <p class="subtitle">See exactly how your income tax flows from the General Fund to Oregon's state agencies.</p>
+</div>
+
+<div id="content">
+  <div class="loading">
+    <div class="loading-spinner"></div>
+    <div>Loading spending data...</div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-title"></div>
+  <div class="tt-value"></div>
+  <div class="tt-detail"></div>
+</div>
+
+<script>
+const FISCAL_YEAR = 2025;
+const API_BASE = '';  // Same origin
+
+// Color palette for layers
+const layerColors = [
+  '#d4a54a',  // Layer 0: Your $1 (gold)
+  '#4a90d9',  // Layer 1: General Fund (blue)
+  '#38b2ac',  // Layer 2: Agencies (teal)
+  '#e07a5f',  // Layer 3: Budget Classes (coral)
+  '#9b7fd4',  // Layer 4: Expenditure Types (purple)
+];
+
+const palette = [
+  '#d4a54a', '#4a90d9', '#38b2ac', '#e07a5f', '#9b7fd4',
+  '#e6b84f', '#5fa0e0', '#4fc4bc', '#e89a84', '#b59ae0',
+  '#c29040', '#3d7cc0', '#2f9e98', '#d06848', '#8568c0'
+];
+
+function getNodeColor(node) {
+  if (node.layer !== undefined) {
+    return layerColors[node.layer] || palette[node.index % palette.length];
+  }
+  return palette[node.index % palette.length];
+}
+
+async function loadData() {
+  try {
+    const response = await fetch(`${API_BASE}/api/sankey/${FISCAL_YEAR}?top_agencies=10`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    renderVisualization(data);
+  } catch (error) {
+    console.error('Failed to load data:', error);
+    document.getElementById('content').innerHTML = `
+      <div class="error">
+        <h3>Failed to load data</h3>
+        <p>${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+function renderVisualization(data) {
+  const { nodes, links, summary } = data;
+  
+  document.getElementById('fiscal-year').textContent = data.fiscal_year;
+  
+  // Build the content HTML
+  const contentHtml = `
+    <div class="sankey-wrapper">
+      <div class="sankey-card">
+        <div class="column-labels">
+          <span>Your $1.00</span>
+          <span>General Fund</span>
+          <span>Agency</span>
+        </div>
+        <div id="sankey-chart"></div>
+      </div>
+    </div>
+
+    <div class="summary-row" id="summary-row"></div>
+
+    <div class="table-section">
+      <div class="table-title">Top 10 Agencies by Spending</div>
+      <table class="result-table" id="result-table">
+        <thead>
+          <tr>
+            <th>Agency</th>
+            <th style="text-align:right">Total Spending</th>
+            <th style="text-align:right">% of Total</th>
+            <th style="width:150px"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      Data sourced from Oregon's open transparency portal (data.oregon.gov). 
+      This visualization shows how your income tax flows from the General Fund to the top 10 agencies in FY ${data.fiscal_year}. 
+      81.6% of personal income tax goes to the General Fund.
+    </div>
+  `;
+  
+  document.getElementById('content').innerHTML = contentHtml;
+  
+  // Render Sankey
+  renderSankey(nodes, links);
+  
+  // Render summary cards
+  renderSummary(summary);
+  
+  // Render agency table
+  renderAgencyTable(summary.top_agencies);
+}
+
+function renderSankey(nodes, links) {
+  const width = 1140;
+  const height = 500;
+
+  const svg = d3.select('#sankey-chart')
+    .append('svg')
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet');
+
+  // Custom node sort: by value descending (largest at top)
+  const sankey = d3.sankey()
+    .nodeId(d => d.index)
+    .nodeWidth(14)
+    .nodePadding(14)
+    .nodeAlign(d3.sankeyLeft)
+    .nodeSort((a, b) => b.value - a.value)  // Sort by value, largest first
+    .extent([[0, 8], [width, height - 8]]);
+
+  const graph = sankey({
+    nodes: nodes.map((d, i) => ({ ...d, index: i })),
+    links: links.map(d => ({ ...d }))
+  });
+
+  // Tooltip helpers
+  const tooltip = document.getElementById('tooltip');
+  function showTooltip(e, title, value, detail) {
+    tooltip.querySelector('.tt-title').textContent = title;
+    tooltip.querySelector('.tt-value').textContent = value;
+    tooltip.querySelector('.tt-detail').textContent = detail || '';
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top = (e.clientY - 20) + 'px';
+    tooltip.classList.add('visible');
+  }
+  function hideTooltip() { tooltip.classList.remove('visible'); }
+
+  // Links
+  svg.append('g')
+    .selectAll('.link')
+    .data(graph.links)
+    .join('path')
+    .attr('class', 'link')
+    .attr('d', d3.sankeyLinkHorizontal())
+    .attr('stroke', d => getNodeColor(d.source))
+    .attr('stroke-width', d => Math.max(1, d.width))
+    .on('mousemove', (e, d) => {
+      const cents = (d.value * 100).toFixed(2);
+      showTooltip(e, `${d.source.name} → ${d.target.name}`, `${cents}¢ per dollar`, `${(d.value * 100).toFixed(2)}% of total spending`);
+    })
+    .on('mouseleave', hideTooltip);
+
+  // Nodes
+  const node = svg.append('g')
+    .selectAll('.node')
+    .data(graph.nodes)
+    .join('g')
+    .attr('class', 'node');
+
+  node.append('rect')
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('height', d => Math.max(2, d.y1 - d.y0))
+    .attr('width', d => d.x1 - d.x0)
+    .attr('fill', d => getNodeColor(d))
+    .on('mousemove', (e, d) => {
+      const cents = (d.value * 100).toFixed(2);
+      showTooltip(e, d.name, `${cents}¢ per dollar`, `${(d.value * 100).toFixed(2)}% of total`);
+    })
+    .on('mouseleave', hideTooltip);
+
+  // Labels (only for nodes with enough height)
+  node.filter(d => (d.y1 - d.y0) > 14)
+    .append('text')
+    .attr('class', 'node-label')
+    .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+    .attr('y', d => (d.y0 + d.y1) / 2)
+    .attr('dy', '-0.15em')
+    .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+    .text(d => {
+      const maxLen = d.layer >= 3 ? 24 : 30;
+      return d.name.length > maxLen ? d.name.slice(0, maxLen - 1) + '…' : d.name;
+    });
+
+  node.filter(d => (d.y1 - d.y0) > 20)
+    .append('text')
+    .attr('class', 'node-value')
+    .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+    .attr('y', d => (d.y0 + d.y1) / 2)
+    .attr('dy', '1em')
+    .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+    .text(d => `${(d.value * 100).toFixed(2)}¢`);
+}
+
+function renderSummary(summary) {
+  const summaryEl = document.getElementById('summary-row');
+  const topAgency = summary.top_agencies[0];
+  
+  const stats = [
+    { 
+      num: `$${(summary.grand_total / 1e9).toFixed(2)}B`, 
+      label: 'Total State Spending' 
+    },
+    { 
+      num: summary.transaction_count.toLocaleString(), 
+      label: 'Total Transactions' 
+    },
+    { 
+      num: summary.agency_count, 
+      label: 'Top Agencies Shown' 
+    },
+    { 
+      num: `${topAgency.pct.toFixed(1)}%`, 
+      label: `Largest: ${topAgency.name.slice(0, 20)}` 
+    },
+  ];
+  
+  summaryEl.innerHTML = stats.map(s => `
+    <div class="stat-card">
+      <div class="stat-num">${s.num}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>
+  `).join('');
+}
+
+function renderAgencyTable(agencies) {
+  const tbody = document.querySelector('#result-table tbody');
+  const maxPct = agencies[0]?.pct || 1;
+  
+  tbody.innerHTML = agencies.map(a => {
+    const barW = (a.pct / maxPct) * 100;
+    return `
+      <tr>
+        <td>${a.name}</td>
+        <td class="money">$${(a.total / 1e6).toFixed(1)}M</td>
+        <td class="money">${a.pct.toFixed(2)}%</td>
+        <td class="bar-cell"><div class="bar-bg" style="width:${barW}%"></div></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>

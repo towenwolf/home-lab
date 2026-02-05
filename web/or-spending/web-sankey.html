@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where Does Your Oregon Tax Dollar Go?</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0e17;
+    --bg-card: #111827;
+    --bg-surface: #1a2235;
+    --border: #2a3654;
+    --text-primary: #e8ecf4;
+    --text-secondary: #8899b8;
+    --text-muted: #576888;
+    --accent-gold: #d4a54a;
+    --accent-gold-dim: #a37e2e;
+    --accent-blue: #4a90d9;
+    --accent-teal: #38b2ac;
+    --accent-coral: #e07a5f;
+    --accent-purple: #9b7fd4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Source Sans 3', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .header {
+    text-align: center;
+    padding: 48px 24px 12px;
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+    margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.2s;
+  }
+
+  .title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(28px, 5vw, 52px);
+    line-height: 1.1;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.4s;
+  }
+
+  .title em {
+    color: var(--accent-gold);
+    font-style: normal;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.6;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.6s;
+  }
+
+  /* SQL Section */
+  .sql-section {
+    max-width: 900px;
+    margin: 36px auto 0;
+    padding: 0 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.8s;
+  }
+
+  .sql-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .sql-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .sql-block::before {
+    content: 'SQL';
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .sql-kw { color: var(--accent-blue); font-weight: 600; }
+  .sql-fn { color: var(--accent-teal); }
+  .sql-str { color: var(--accent-coral); }
+  .sql-num { color: var(--accent-gold); }
+  .sql-comment { color: var(--text-muted); font-style: italic; }
+
+  /* Sankey container */
+  .sankey-wrapper {
+    max-width: 1100px;
+    margin: 40px auto 0;
+    padding: 0 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1.0s;
+  }
+
+  .sankey-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sankey-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-gold), var(--accent-teal), var(--accent-blue), var(--accent-purple));
+  }
+
+  .column-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  #sankey-chart { width: 100%; }
+
+  .sankey-card .link {
+    fill: none;
+    stroke-opacity: 0.18;
+    transition: stroke-opacity 0.3s ease;
+  }
+  .sankey-card .link:hover { stroke-opacity: 0.55; }
+
+  .node rect {
+    rx: 3;
+    ry: 3;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 0.5;
+    cursor: pointer;
+    transition: filter 0.3s ease;
+  }
+  .node rect:hover { filter: brightness(1.25); }
+
+  .node-label {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 11px;
+    fill: var(--text-secondary);
+    pointer-events: none;
+  }
+
+  .node-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--text-muted);
+    pointer-events: none;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 999;
+    max-width: 320px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .tt-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .tooltip .tt-value {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-gold);
+    font-size: 14px;
+  }
+  .tooltip .tt-detail {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  /* Summary row */
+  .summary-row {
+    display: flex;
+    gap: 16px;
+    max-width: 1100px;
+    margin: 24px auto 0;
+    padding: 0 24px;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1.2s;
+  }
+
+  .stat-card {
+    flex: 1;
+    min-width: 180px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    text-align: center;
+  }
+
+  .stat-card .stat-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--accent-gold);
+  }
+
+  .stat-card .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Table section */
+  .table-section {
+    max-width: 1100px;
+    margin: 32px auto 48px;
+    padding: 0 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1.4s;
+  }
+
+  .table-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .result-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .result-table th {
+    background: var(--bg-surface);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(42,54,84,0.4);
+  }
+
+  .result-table tr:last-child td { border-bottom: none; }
+  .result-table tr:hover td { background: rgba(212,165,74,0.03); }
+
+  .result-table .money {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-gold);
+    text-align: right;
+  }
+
+  .bar-cell {
+    position: relative;
+    padding-right: 80px !important;
+  }
+  .bar-cell .bar-bg {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 6px;
+    background: linear-gradient(90deg, var(--accent-gold-dim), var(--accent-gold));
+    border-radius: 3px;
+    opacity: 0.35;
+  }
+
+  .footer-note {
+    text-align: center;
+    padding: 0 24px 48px;
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">State of Oregon · Fiscal Year 2023</div>
+  <h1 class="title">Where Does Your <em>$1</em> Go?</h1>
+  <p class="subtitle">Every transaction in Oregon's public spending data, normalized to show exactly how a single tax dollar flows from the state treasury to its final destination.</p>
+</div>
+
+<div class="sql-section">
+  <div class="sql-label">Query · Normalize spending to $1</div>
+  <div class="sql-block">
+    <span class="sql-comment">-- How is $1.00 of Oregon tax revenue allocated?</span><br>
+    <span class="sql-kw">WITH</span> total <span class="sql-kw">AS</span> (<br>
+    &nbsp;&nbsp;<span class="sql-kw">SELECT SUM</span>(<span class="sql-fn">expense</span>) <span class="sql-kw">AS</span> grand_total <span class="sql-kw">FROM</span> oregon_spending<br>
+    ),<br>
+    per_dollar <span class="sql-kw">AS</span> (<br>
+    &nbsp;&nbsp;<span class="sql-kw">SELECT</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;agency_name,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;budget_class_name,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;expend_class_name,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">ROUND</span>(<span class="sql-fn">SUM</span>(expense) / grand_total, <span class="sql-num">4</span>) <span class="sql-kw">AS</span> cents_per_dollar<br>
+    &nbsp;&nbsp;<span class="sql-kw">FROM</span> oregon_spending, total<br>
+    &nbsp;&nbsp;<span class="sql-kw">GROUP BY</span> agency_name, budget_class_name, expend_class_name, grand_total<br>
+    &nbsp;&nbsp;<span class="sql-kw">ORDER BY</span> cents_per_dollar <span class="sql-kw">DESC</span><br>
+    )<br>
+    <span class="sql-kw">SELECT</span> *,<br>
+    &nbsp;&nbsp;<span class="sql-fn">FORMAT</span>(cents_per_dollar * <span class="sql-num">100</span>, <span class="sql-str">'0.00¢'</span>) <span class="sql-kw">AS</span> per_dollar_display<br>
+    <span class="sql-kw">FROM</span> per_dollar;
+  </div>
+</div>
+
+<div class="sankey-wrapper">
+  <div class="sankey-card">
+    <div class="column-labels">
+      <span>Your $1.00</span>
+      <span>Agency</span>
+      <span>Budget Class</span>
+      <span>Expenditure Type</span>
+    </div>
+    <div id="sankey-chart"></div>
+  </div>
+</div>
+
+<div class="summary-row" id="summary-row"></div>
+
+<div class="table-section">
+  <div class="table-title">SQL Result · Per-dollar breakdown</div>
+  <table class="result-table" id="result-table">
+    <thead>
+      <tr>
+        <th>Expenditure Type</th>
+        <th>Budget Class</th>
+        <th style="text-align:right">Cents per $1</th>
+        <th style="text-align:right">% of Total</th>
+        <th style="width:120px"></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="footer-note">
+  Data sourced from Oregon's open transparency portal (data.oregon.gov). This visualization reflects the transaction-level spending records uploaded for FY&nbsp;2023. Proportions are normalized so that all expenditures sum to exactly $1.00.
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-title"></div>
+  <div class="tt-value"></div>
+  <div class="tt-detail"></div>
+</div>
+
+<script>
+// ── Raw transaction data (from uploaded CSV) ──────────────────────────────
+const transactions = [
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "CLASS/UNCLASS SALARY & PER DIEM", expend_class_name: "REGULAR EMPLOYEES", vendor: "DEPARTMENT OF ADMINISTRATIVE SERVICES", expense: 270.72 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "UNEMPLOYMENT ASSESSMENT", expend_class_name: "UNEMPLOYMENT COMPENSATION & ASSESSMENT", vendor: "EMPLOYMENT DEPARTMENT", expense: 5131.00 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS WITH OVERNIGHT STAY", vendor: "FRANK LEONARD JR", expense: 59.00 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS WITH OVERNIGHT STAY", vendor: "JEREMY BROOKS", expense: 73.75 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS WITH OVERNIGHT STAY", vendor: "MARIE DUE", expense: 88.50 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS WITH OVERNIGHT STAY", vendor: "SHELLI KAY KATAURA", expense: 295.00 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS WITH OVERNIGHT STAY", vendor: "STEVE STRODE", expense: 458.13 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE TRAVEL MISCELLANEOUS EXPENSES", vendor: "US BANK NATIONAL ASSOCIATION ND", expense: 120.00 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE MEALS-NO OVERNIGHT STAY", vendor: "US BANK NATIONAL ASSOCIATION ND", expense: 414.01 },
+  { agency_name: "REAL ESTATE AGY", budget_class_name: "INSTATE TRAVEL", expend_class_name: "INSTATE LODGING", vendor: "STEVE STRODE", expense: 898.28 },
+];
+
+// ── SQL-equivalent: compute per-dollar allocation ─────────────────────────
+const grandTotal = transactions.reduce((s, t) => s + t.expense, 0);
+
+// Group by the three-level hierarchy
+const grouped = {};
+transactions.forEach(t => {
+  const key = `${t.budget_class_name}|||${t.expend_class_name}`;
+  if (!grouped[key]) grouped[key] = { agency: t.agency_name, budget: t.budget_class_name, expend: t.expend_class_name, total: 0 };
+  grouped[key].total += t.expense;
+});
+
+const rows = Object.values(grouped)
+  .map(r => ({ ...r, perDollar: r.total / grandTotal }))
+  .sort((a, b) => b.perDollar - a.perDollar);
+
+// ── Build Sankey nodes and links ──────────────────────────────────────────
+const nodeNames = [];
+const nodeMap = {};
+function getNode(name) {
+  if (nodeMap[name] === undefined) {
+    nodeMap[name] = nodeNames.length;
+    nodeNames.push(name);
+  }
+  return nodeMap[name];
+}
+
+const SOURCE = "YOUR $1.00";
+getNode(SOURCE);
+
+const links = [];
+const agencyTotals = {};
+const budgetTotals = {};
+
+rows.forEach(r => {
+  // Accumulate agency total
+  agencyTotals[r.agency] = (agencyTotals[r.agency] || 0) + r.perDollar;
+  const budgetKey = `${r.agency}→${r.budget}`;
+  budgetTotals[budgetKey] = (budgetTotals[budgetKey] || 0) + r.perDollar;
+});
+
+// Link: Source → Agency
+Object.entries(agencyTotals).forEach(([agency, val]) => {
+  links.push({ source: getNode(SOURCE), target: getNode(agency), value: val });
+});
+
+// Link: Agency → Budget Class
+rows.forEach(r => {
+  const budgetKey = `${r.agency}→${r.budget}`;
+  const budgetLabel = r.budget;
+  // Only add once per budget class
+  if (!links.find(l => l.source === getNode(r.agency) && l.target === getNode(budgetLabel))) {
+    links.push({ source: getNode(r.agency), target: getNode(budgetLabel), value: budgetTotals[budgetKey] });
+  }
+});
+
+// Link: Budget Class → Expenditure Type
+rows.forEach(r => {
+  links.push({ source: getNode(r.budget), target: getNode(r.expend), value: r.perDollar });
+});
+
+const nodes = nodeNames.map(name => ({ name }));
+
+// ── Color scheme ──────────────────────────────────────────────────────────
+const palette = [
+  '#d4a54a', '#4a90d9', '#38b2ac', '#e07a5f', '#9b7fd4',
+  '#e6b84f', '#5fa0e0', '#4fc4bc', '#e89a84', '#b59ae0',
+  '#c29040', '#3d7cc0', '#2f9e98', '#d06848', '#8568c0'
+];
+
+function nodeColor(i) {
+  if (i === 0) return '#d4a54a'; // source gold
+  return palette[(i - 1) % palette.length];
+}
+
+// ── Render Sankey ─────────────────────────────────────────────────────────
+const width = 1040;
+const height = 420;
+
+const svg = d3.select('#sankey-chart')
+  .append('svg')
+  .attr('viewBox', `0 0 ${width} ${height}`)
+  .attr('preserveAspectRatio', 'xMidYMid meet');
+
+const sankey = d3.sankey()
+  .nodeId(d => d.index)
+  .nodeWidth(14)
+  .nodePadding(18)
+  .nodeAlign(d3.sankeyLeft)
+  .extent([[0, 8], [width, height - 8]]);
+
+const graph = sankey({
+  nodes: nodes.map(d => ({ ...d })),
+  links: links.map(d => ({ ...d }))
+});
+
+// Tooltip helpers
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, title, value, detail) {
+  tooltip.querySelector('.tt-title').textContent = title;
+  tooltip.querySelector('.tt-value').textContent = value;
+  tooltip.querySelector('.tt-detail').textContent = detail || '';
+  tooltip.style.left = (e.clientX + 16) + 'px';
+  tooltip.style.top = (e.clientY - 20) + 'px';
+  tooltip.classList.add('visible');
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+// Links
+svg.append('g')
+  .selectAll('.link')
+  .data(graph.links)
+  .join('path')
+  .attr('class', 'link')
+  .attr('d', d3.sankeyLinkHorizontal())
+  .attr('stroke', d => nodeColor(d.source.index))
+  .attr('stroke-width', d => Math.max(2, d.width))
+  .on('mousemove', (e, d) => {
+    const cents = (d.value * 100).toFixed(2);
+    showTooltip(e, `${d.source.name} → ${d.target.name}`, `${cents}¢ per dollar`, `${(d.value * 100).toFixed(1)}% of total spending`);
+  })
+  .on('mouseleave', hideTooltip);
+
+// Nodes
+const node = svg.append('g')
+  .selectAll('.node')
+  .data(graph.nodes)
+  .join('g')
+  .attr('class', 'node');
+
+node.append('rect')
+  .attr('x', d => d.x0)
+  .attr('y', d => d.y0)
+  .attr('height', d => Math.max(4, d.y1 - d.y0))
+  .attr('width', d => d.x1 - d.x0)
+  .attr('fill', d => nodeColor(d.index))
+  .on('mousemove', (e, d) => {
+    const cents = (d.value * 100).toFixed(2);
+    showTooltip(e, d.name, `${cents}¢ per dollar`, `${(d.value * 100).toFixed(1)}% of total`);
+  })
+  .on('mouseleave', hideTooltip);
+
+// Labels
+node.append('text')
+  .attr('class', 'node-label')
+  .attr('x', d => d.x0 < width / 2 ? d.x1 + 8 : d.x0 - 8)
+  .attr('y', d => (d.y0 + d.y1) / 2)
+  .attr('dy', '-0.15em')
+  .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+  .text(d => {
+    const name = d.name;
+    return name.length > 34 ? name.slice(0, 32) + '…' : name;
+  });
+
+node.append('text')
+  .attr('class', 'node-value')
+  .attr('x', d => d.x0 < width / 2 ? d.x1 + 8 : d.x0 - 8)
+  .attr('y', d => (d.y0 + d.y1) / 2)
+  .attr('dy', '1em')
+  .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+  .text(d => `${(d.value * 100).toFixed(2)}¢`);
+
+// ── Summary cards ─────────────────────────────────────────────────────────
+const summaryEl = document.getElementById('summary-row');
+const stats = [
+  { num: `$${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, label: 'Total Spending in Dataset' },
+  { num: rows.length, label: 'Expenditure Categories' },
+  { num: `${(rows[0].perDollar * 100).toFixed(1)}¢`, label: `Largest: ${rows[0].expend}` },
+  { num: new Set(transactions.map(t => t.vendor)).size, label: 'Unique Vendors' },
+];
+stats.forEach(s => {
+  summaryEl.innerHTML += `<div class="stat-card"><div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div></div>`;
+});
+
+// ── Result table ──────────────────────────────────────────────────────────
+const tbody = document.querySelector('#result-table tbody');
+const maxPct = rows[0].perDollar * 100;
+rows.forEach(r => {
+  const pct = (r.perDollar * 100).toFixed(2);
+  const cents = (r.perDollar * 100).toFixed(2);
+  const barW = (pct / maxPct) * 100;
+  tbody.innerHTML += `
+    <tr>
+      <td>${r.expend}</td>
+      <td>${r.budget}</td>
+      <td class="money">${cents}¢</td>
+      <td class="money">${pct}%</td>
+      <td class="bar-cell"><div class="bar-bg" style="width:${barW}%"></div></td>
+    </tr>`;
+});
+</script>
+</body>
+</html>
