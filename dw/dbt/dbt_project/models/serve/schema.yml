@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: fact_sankey_links
+    description: >
+      Pre-computed Sankey diagram links for the Oregon Tax Dollar Flow visualization.
+      Each row represents a link between two nodes showing how tax dollars flow
+      from income tax through the General Fund to agencies, budget classes, and
+      expenditure categories.
+    columns:
+      - name: fiscal_year
+        description: "Fiscal year for the spending data"
+        tests:
+          - not_null
+      - name: source
+        description: "Source node name in the Sankey diagram"
+        tests:
+          - not_null
+      - name: target
+        description: "Target node name in the Sankey diagram"
+        tests:
+          - not_null
+      - name: source_layer
+        description: "Layer index of source node (0-4)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1, 2, 3]
+      - name: target_layer
+        description: "Layer index of target node (1-4)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+      - name: value
+        description: "Flow value (portion of $1 income tax)"
+        tests:
+          - not_null

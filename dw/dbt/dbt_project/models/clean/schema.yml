@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: int_fiscal_year_totals
+    description: "Grand totals per fiscal year for normalization calculations"
+    columns:
+      - name: fiscal_year
+        description: "Fiscal year"
+        tests:
+          - unique
+          - not_null
+      - name: transaction_count
+        description: "Total number of spending transactions"
+      - name: agency_count
+        description: "Number of distinct agencies"
+      - name: vendor_count
+        description: "Number of distinct vendors"
+      - name: grand_total
+        description: "Total spending for the fiscal year"
+
+  - name: int_spending_by_agency
+    description: "Spending aggregated by agency with per-dollar calculations"
+    columns:
+      - name: fiscal_year
+        description: "Fiscal year"
+        tests:
+          - not_null
+      - name: agency_id
+        description: "Agency identifier"
+        tests:
+          - not_null
+      - name: agency_name
+        description: "Agency display name"
+      - name: total_expense
+        description: "Total spending by this agency"
+      - name: pct_of_total
+        description: "Percentage of total spending"
+      - name: per_dollar
+        description: "Cents per dollar of total spending"
+
+  - name: int_spending_by_budget_class
+    description: "Spending aggregated by agency and budget class"
+    columns:
+      - name: fiscal_year
+        tests:
+          - not_null
+      - name: agency_id
+        tests:
+          - not_null
+      - name: budget_class_id
+        tests:
+          - not_null
+
+  - name: int_spending_by_expend_class
+    description: "Spending aggregated by agency, budget class, and expenditure class"
+    columns:
+      - name: fiscal_year
+        tests:
+          - not_null
+      - name: agency_id
+        tests:
+          - not_null
+      - name: expend_class_id
+        tests:
+          - not_null
+
+  - name: int_spending_by_vendor
+    description: "Spending by vendor with top 15 per agency/expend class, others grouped"
+    columns:
+      - name: fiscal_year
+        tests:
+          - not_null
+      - name: vendor_name
+        description: "Vendor name or 'OTHER VENDORS' for grouped remainder"

@@ -8,3 +8,21 @@ model-paths: ["models"]
 clean-targets:
   - "target"
   - "dbt_packages"
+
+# Project variables
+vars:
+  # Personal Income Tax share of General Fund (81.6%)
+  pit_share: 0.816
+
+# Model configurations
+models:
+  dw:
+    raw:
+      +schema: clean
+      +materialized: view
+    clean:
+      +schema: clean
+      +materialized: table
+    serve:
+      +schema: serve
+      +materialized: table
